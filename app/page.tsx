@@ -1871,6 +1871,15 @@ export default function Home() {
           if (ctrl.signal.aborted) break
           if (chunk.done) break
           if (chunk.error) {
+            fullContent = `❌ **Error:** ${chunk.error}`
+            updateConv(
+              convId!,
+              lensUpdateMessage(assistantId, m => ({
+                ...m,
+                content: fullContent,
+                status: 'error',
+              }))
+            )
             notify({ type: 'error', message: chunk.error })
             break
           }

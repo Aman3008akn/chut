@@ -409,10 +409,18 @@ export async function POST(req: NextRequest) {
           safeClose()
         } catch (err: any) {
           console.error('Streaming error:', err)
+          let errorMsg = 'AI is temporarily busy. One moment...'
+          
+          if (err.message?.includes('429')) {
+            errorMsg = 'Gemini API Quota Exceeded. Please check your API key usage limits or try again later.'
+          } else if (err.message?.includes('503')) {
+            errorMsg = 'Gemini models are currently overloaded. Please try again in a few seconds.'
+          }
+
           safeEnqueue(
             encoder.encode(
               `data: ${JSON.stringify({
-                error: 'AI is temporarily busy. One moment...',
+                error: errorMsg,
               })}\n\n`
             )
           )
