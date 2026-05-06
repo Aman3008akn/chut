@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Users, Plus, Mail, X, Check, Copy, 
+  Users, Plus, Mail, X, Check, 
   MessageSquare, Settings, UserPlus, Loader2
 } from 'lucide-react'
 
@@ -24,7 +24,6 @@ interface Team {
 
 interface TeamPanelProps {
   userId: string
-  userEmail: string
   isOpen: boolean
   onClose: () => void
   onSelectTeam: (team: Team) => void
@@ -32,7 +31,6 @@ interface TeamPanelProps {
 
 export default function TeamPanel({
   userId,
-  userEmail,
   isOpen,
   onClose,
   onSelectTeam,
@@ -45,12 +43,17 @@ export default function TeamPanel({
   const [teamName, setTeamName] = useState('')
   const [teamDescription, setTeamDescription] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteLink, setInviteLink] = useState('')
 
   useEffect(() => {
     if (isOpen && userId) {
       loadTeams()
     }
+  }, [isOpen, userId])
+
+  useEffect(() => {
+    if (!isOpen || !userId) return
+    const timer = setInterval(loadTeams, 2500)
+    return () => clearInterval(timer)
   }, [isOpen, userId])
 
   const loadTeams = async () => {
@@ -105,43 +108,39 @@ export default function TeamPanel({
 
   const handleInvite = async () => {
     if (!selectedTeam || !inviteEmail.trim()) {
-      alert('Please enter an email address')
+      alert('Please enter a username')
       return
     }
 
     setLoading(true)
     try {
-      const res = await fetch('/api/teams/invite', {
+      const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'add_member_by_username',
           teamId: selectedTeam.id,
-          inviterId: userId,
-          inviteeEmail: inviteEmail,
+          userId,
+          usernameToAdd: inviteEmail,
         }),
       })
 
       const data = await res.json()
 
       if (res.ok) {
-        const invitation = data
-        const link = `${window.location.origin}/invite/${invitation.id}`
-        setInviteLink(link)
+        setSelectedTeam(data)
+        setTeams(prev => prev.map(t => (t.id === data.id ? data : t)))
         setInviteEmail('')
-        alert('Invitation created successfully! Share the link below.')
+        alert('Member added instantly')
       } else {
-        alert(`Error: ${data.error || 'Failed to create invitation'}`)
+        alert(`Error: ${data.error || 'Failed to add member'}`)
       }
     } catch (error) {
       console.error('Error sending invitation:', error)
-      alert('Failed to send invitation. Please try again.')
+      alert('Failed to add member. Please try again.')
     } finally {
       setLoading(false)
     }
-  }
-
-  const copyInviteLink = () => {
-    navigator.clipboard.writeText(inviteLink)
   }
 
   if (!isOpen) return null
@@ -271,7 +270,6 @@ export default function TeamPanel({
                 <button
                   onClick={() => {
                     setSelectedTeam(null)
-                    setInviteLink('')
                     setShowInviteForm(false)
                   }}
                   className="text-sm text-[var(--accent)] hover:underline mb-3"
@@ -319,13 +317,13 @@ export default function TeamPanel({
                            hover:border-[var(--accent)] transition-all flex items-center justify-center gap-2"
                 >
                   <UserPlus size={16} className="text-[var(--accent)]" />
-                  <span className="text-sm text-[var(--accent)]">Invite Members</span>
+                  <span className="text-sm text-[var(--accent)]">Add by Username</span>
                 </button>
               ) : (
                 <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl p-4 space-y-3">
                   <input
-                    type="email"
-                    placeholder="Enter email address"
+                    type="text"
+                    placeholder="Enter username"
                     value={inviteEmail}
                     onChange={e => setInviteEmail(e.target.value)}
                     className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--surface-border)] 
@@ -338,29 +336,8 @@ export default function TeamPanel({
                              font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
-                    Send Invitation
+                    Add Member
                   </button>
-
-                  {inviteLink && (
-                    <div className="p-3 bg-[var(--bg)] rounded-lg">
-                      <p className="text-xs text-[var(--text-secondary)] mb-2">Share this link:</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={inviteLink}
-                          readOnly
-                          className="flex-1 px-2 py-1 bg-[var(--surface)] border border-[var(--surface-border)] 
-                                   rounded text-xs text-[var(--text-primary)]"
-                        />
-                        <button
-                          onClick={copyInviteLink}
-                          className="px-3 py-1 bg-[var(--accent)] text-white rounded text-xs hover:opacity-90"
-                        >
-                          <Copy size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </>
