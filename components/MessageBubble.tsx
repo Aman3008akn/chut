@@ -116,6 +116,16 @@ export default function MessageBubble({
   enableAnimations = true,
   enableAccessibility = true
 }: MessageBubbleProps) {
+  if (!message) return null
+
+  const content = typeof message.content === 'string' ? message.content : ''
+  const isUser = message.role === 'user'
+  const isStreaming = message.status === 'streaming'
+
+  if (!isUser && isStreaming && !content.trim()) {
+    return <div className="orb-loader" aria-label="Assistant is generating a response" />
+  }
+
   // State management
   const [copied, setCopied] = useState(false)
   const [thinkExpanded, setThinkExpanded] = useState(false)
@@ -146,10 +156,9 @@ export default function MessageBubble({
   const reactionsRef = useRef<HTMLDivElement>(null)
   
   // Derived values
-  const isUser = message.role === 'user'
   const cleanContent = isUser
-    ? message.content
-    : parseFollowUps(message.content).cleanContent
+    ? content
+    : parseFollowUps(content).cleanContent
   
   const thinkSecs = message.thinkingTime
     ? (message.thinkingTime / 1000).toFixed(1)
@@ -159,12 +168,8 @@ export default function MessageBubble({
   const codeBlocks = useMemo(() => extractCodeBlocks(cleanContent), [cleanContent])
   const hasSensitiveData = useMemo(() => detectSensitiveData(cleanContent), [cleanContent])
 
-  if (!isUser && message.status === 'streaming' && message.content === '') {
-    return <div className="orb-loader" aria-label="Assistant is generating a response" />
-  }
-
   useEffect(() => {
-    if (message.status !== 'streaming') {
+    if (!isStreaming) {
       setStreamingContent(cleanContent)
       return
     }
@@ -177,7 +182,7 @@ export default function MessageBubble({
     }, 18)
 
     return () => window.clearTimeout(timer)
-  }, [cleanContent, message.status, streamingContent.length])
+  }, [cleanContent, isStreaming, streamingContent.length])
   
   // Validation on mount
   useEffect(() => {
