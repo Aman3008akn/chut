@@ -25,9 +25,11 @@ async function streamFromGemini(
     }
 
     const modelsToTry = [
-      "gemini-2.5-flash",
-      "gemini-flash-latest",
       "gemini-2.0-flash",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
+      "gemini-flash-latest",
+      "gemini-2.5-flash",
       "gemini-pro-latest"
     ]
 
@@ -137,13 +139,88 @@ async function streamFromGemini(
       } catch (modelError: any) {
         console.warn(`Model ${modelName} failed:`, modelError.message)
         lastError = modelError
+        
+        // If we hit a rate limit (429), immediately try Pollinations as a fallback
+        if (modelError.message?.includes('429')) {
+          console.log('Rate limit hit, attempting Pollinations fallback...')
+          return await streamFromPollinations(messages, systemPrompt, controller, encoder)
+        }
+        
         continue
       }
     }
 
-    throw lastError || new Error('All Gemini models failed')
+    // If all Gemini models fail but not due to 429, try Pollinations anyway
+    return await streamFromPollinations(messages, systemPrompt, controller, encoder)
   } catch (error: any) {
     console.error('Gemini API error:', error.message)
+    // Final fallback attempt
+    try {
+      return await streamFromPollinations(messages, systemPrompt, controller, encoder)
+    } catch (finalErr) {
+      return false
+    }
+  }
+}
+
+/**
+ * Fallback to Pollinations AI (ChatGPT-like response)
+ * No API key required, highly reliable free tier.
+ */
+async function streamFromPollinations(
+  messages: any[],
+  systemPrompt: string,
+  controller: ReadableStreamDefaultController,
+  encoder: TextEncoder
+): Promise<boolean> {
+  try {
+    console.log('Using Pollinations AI fallback (ChatGPT alternative)...')
+    
+    // Format history for Pollinations (OpenAI-like format)
+    const formattedMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }))
+    ]
+
+    const response = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: formattedMessages,
+        stream: true,
+        model: 'openai' // This maps to a ChatGPT-like model on Pollinations
+      })
+    })
+
+    if (!response.ok) throw new Error(`Pollinations error: ${response.status}`)
+    if (!response.body) throw new Error('Pollinations: No response body')
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let done = false
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read()
+      if (readerDone) {
+        done = true
+        break
+      }
+      
+      const chunkText = decoder.decode(value)
+      // Pollinations sends raw text chunks in stream mode
+      if (chunkText) {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ text: chunkText })}\n\n`)
+        )
+      }
+    }
+
+    return true
+  } catch (error: any) {
+    console.error('Pollinations fallback failed:', error.message)
     return false
   }
 }
