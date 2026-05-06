@@ -159,6 +159,10 @@ export default function MessageBubble({
   const codeBlocks = useMemo(() => extractCodeBlocks(cleanContent), [cleanContent])
   const hasSensitiveData = useMemo(() => detectSensitiveData(cleanContent), [cleanContent])
 
+  if (!isUser && message.status === 'streaming' && message.content === '') {
+    return <div className="orb-loader" aria-label="Assistant is generating a response" />
+  }
+
   useEffect(() => {
     if (message.status !== 'streaming') {
       setStreamingContent(cleanContent)
@@ -495,12 +499,6 @@ export default function MessageBubble({
             </div>
           </div>
         </div>
-      )
-    }
-    
-    if (message.status === 'streaming' && message.content === '') {
-      return (
-        <div className="orb-loader" aria-label="Assistant is generating a response" />
       )
     }
     

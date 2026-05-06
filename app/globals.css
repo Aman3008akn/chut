@@ -127,6 +127,17 @@ body {
   animation: pulse 2s infinite ease-in-out;
 }
 
+.orb-loader-wrapper,
+.message-loading,
+.assistant-loading,
+.streaming-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+}
+
 /* ── Animations ── */
 @keyframes thinkingPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
