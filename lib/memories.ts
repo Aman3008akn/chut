@@ -46,14 +46,14 @@ const MEMORY_PATTERNS: {
 }[] = [
   // Name patterns (Hindi + English)
   {
-    pattern: /(?:my name is|i'?m|i am|mera naam|mera name|naam hai|name hai|call me|everyone calls me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+    pattern: /(?:my name is|i'?m|i am|mera naam|mera name|naam hai|name hai|call me|everyone calls me)\s+([a-z]{2,}(?:\s+[a-z]{2,})?)/i,
     key: 'name',
     category: 'identity',
     valueGroup: 1,
     confidence: 0.95,
   },
   {
-    pattern: /(?:mai|main|mein)\s+([A-Z][a-z]+)\s+(?:hu|hoon|hun|hü)/i,
+    pattern: /(?:mai|main|mein)\s+([a-z]{2,})\s+(?:hu|hoon|hun|hü)/i,
     key: 'name',
     category: 'identity',
     valueGroup: 1,

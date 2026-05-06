@@ -295,7 +295,7 @@ export async function POST(req: NextRequest) {
 
     // ── Extract & save new memories from user message (background) ──
     const newMemories = extractMemoriesFromText(lastUserMessage)
-    if (newMemories.length > 0 && userId !== 'anonymous') {
+    if (newMemories.length > 0) {
       // Fire and forget - don't block the response
       (async () => {
         try {
@@ -492,10 +492,11 @@ export async function POST(req: NextRequest) {
           let cleanMessages: any[]
 
           if (mode === 'normal' || !mode) {
-            // ✅ FIX: Normal mode mein sirf last user message bhejo
-            // Puri history nahi — isse AI pichle topics repeat nahi karega
-            const lastUserMsg = messages.filter(m => m.role === 'user').at(-1)
-            cleanMessages = lastUserMsg ? [lastUserMsg] : messages.slice(-1)
+            // Keep last 10 messages for context in normal mode
+            cleanMessages = messages.slice(-10).filter(m =>
+              (m.role === 'user') ||
+              (m.role === 'assistant' && (m.status === 'done' || (m.status === 'streaming' && m.content)))
+            )
           } else {
             // Deep research / web search: full history chahiye context ke liye
             cleanMessages = messages.filter(m =>
