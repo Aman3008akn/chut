@@ -1652,13 +1652,13 @@ export default function Home() {
         hasImage: !!safeImage,
       })
 
-      // ── Memory check (client-side for instant feedback) ──
+      // -- Memory check (client-side for instant feedback) --
       const detectedMemories = extractMemoriesFromText(text)
       if (detectedMemories.length > 0) {
         const memoryDetails = detectedMemories.map(m => `${m.key}: ${m.value}`).join(', ')
         notify({
           type: 'info',
-          message: `🧠 Memory updated: ${memoryDetails}`,
+          message: `Memory updated: ${memoryDetails}`,
           duration: 5000
         })
       }

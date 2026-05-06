@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ topics: getFallbackTopics(), cached: false })
     }
 
-    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+    const modelsToTry = ["gemini-2.0-flash", "gemini-flash-latest"]
     let lastError: any = null
 
     for (const modelName of modelsToTry) {
@@ -71,6 +71,11 @@ Rules:
       } catch (modelErr: any) {
         console.warn(`Trending: ${modelName} failed:`, modelErr.message)
         lastError = modelErr
+        
+        // If we hit rate limit, don't try other models as they share quota
+        if (modelErr.message?.includes('429')) {
+          break
+        }
         continue
       }
     }

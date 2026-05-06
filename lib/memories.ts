@@ -234,7 +234,7 @@ export function formatMemoriesForPrompt(memories: Memory[]): string {
     }
   }
 
-  prompt += '\nIMPORTANT: Use these memories naturally in conversation. If the user mentions they are tired, sick, or sad, show empathy and adjust your tone accordingly. Do NOT explicitly say "I remember that..." unless asked. Just use the information naturally.\n'
+  prompt += '\nIMPORTANT: Use these memories naturally in conversation. Address the user by name if you know it. If the user mentions they are tired, sick, sad, or happy, SHOW EMPATHY and adjust your tone accordingly. Do NOT explicitly say "I remember that..." unless asked. Just use the information naturally to provide a more personalized, human-like experience.\n'
 
   return prompt
 }
