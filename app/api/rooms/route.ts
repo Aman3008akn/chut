@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 
 type Member = { userId: string; username: string; joinedAt: number }
-const roomKey = (ids: string[]) => [...new Set(ids)].sort().join(':')
+const roomKey = (ids: string[]) => ids.filter((id, i, arr) => arr.indexOf(id) === i).sort().join(':')
 
 export async function POST(req: NextRequest) {
   try {
