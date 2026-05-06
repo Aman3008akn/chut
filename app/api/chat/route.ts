@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { connectToDatabase } from '@/lib/mongodb'
-import { extractMemoriesFromText, formatMemoriesForPrompt } from '@/lib/memories'
+import { extractMemoriesFromText, formatMemoriesForPrompt, extractMemoriesWithAI } from '@/lib/memories'
 import type { Memory } from '@/lib/memories'
 
 // Gemini API configuration
@@ -303,7 +303,6 @@ export async function POST(req: NextRequest) {
         const collection = db.collection('memories')
         
         // 1. AI-based extraction (more intelligent)
-        const { extractMemoriesWithAI } = await import('@/lib/memories')
         const aiMemories = await extractMemoriesWithAI(lastUserMessage, messages, GEMINI_API_KEY)
         
         // Merge regex and AI memories (AI takes precedence)
