@@ -209,12 +209,36 @@ async function streamFromPollinations(
         break
       }
       
-      const chunkText = decoder.decode(value)
-      // Pollinations sends raw text chunks in stream mode
-      if (chunkText) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ text: chunkText })}\n\n`)
-        )
+      const rawChunk = decoder.decode(value)
+      const lines = rawChunk.split('\n')
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') break
+          
+          try {
+            const parsed = JSON.parse(data)
+            const content = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || ''
+            if (content) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ text: content })}\n\n`)
+              )
+            }
+          } catch (e) {
+            // If not JSON, it might be raw text from Pollinations (they sometimes mix)
+            if (data && !data.startsWith('{')) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ text: data })}\n\n`)
+              )
+            }
+          }
+        } else if (line.trim() && !line.startsWith(':')) {
+          // Some Pollinations models send raw text without 'data: ' prefix
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ text: line })}\n\n`)
+          )
+        }
       }
     }
 
