@@ -294,14 +294,28 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Extract & save new memories from user message (background) ──
-    const newMemories = extractMemoriesFromText(lastUserMessage)
-    if (newMemories.length > 0) {
-      // Fire and forget - don't block the response
-      (async () => {
-        try {
-          const { db } = await connectToDatabase()
-          const collection = db.collection('memories')
-          for (const mem of newMemories) {
+    const regexMemories = extractMemoriesFromText(lastUserMessage)
+    
+    // Fire and forget - don't block the response
+    (async () => {
+      try {
+        const { db } = await connectToDatabase()
+        const collection = db.collection('memories')
+        
+        // 1. AI-based extraction (more intelligent)
+        const { extractMemoriesWithAI } = await import('@/lib/memories')
+        const aiMemories = await extractMemoriesWithAI(lastUserMessage, messages, GEMINI_API_KEY)
+        
+        // Merge regex and AI memories (AI takes precedence)
+        const combined = [...regexMemories]
+        for (const aiM of aiMemories) {
+          if (!combined.some(r => r.key === aiM.key)) {
+            combined.push(aiM)
+          }
+        }
+
+        if (combined.length > 0) {
+          for (const mem of combined) {
             const existing = await collection.findOne({ userId, key: mem.key })
             const now = Date.now()
             if (existing) {
@@ -322,12 +336,12 @@ export async function POST(req: NextRequest) {
               })
             }
           }
-          console.log(`[Memories] Saved ${newMemories.length} memories for ${userId}`)
-        } catch (saveErr: any) {
-          console.warn('[Memories] Failed to save:', saveErr.message)
+          console.log(`[Memories] Saved ${combined.length} memories for ${userId}`)
         }
-      })()
-    }
+      } catch (saveErr: any) {
+        console.warn('[Memories] Failed to save:', saveErr.message)
+      }
+    })()
 
     // Use memory-based name if we have it and no userName from session
     const memoryName = savedMemories.find(m => m.key === 'name')?.value

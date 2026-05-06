@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from "@google/generative-ai"
+
 /**
  * Memory extraction utilities for Nexus AI
  * Detects personal information from user messages and manages memory storage
@@ -201,11 +203,68 @@ export function extractMemoriesFromText(text: string): ExtractedMemory[] {
 }
 
 /**
+ * AI-based memory extraction from user messages.
+ * Uses an LLM to identify important facts that should be remembered.
+ */
+export async function extractMemoriesWithAI(
+  text: string, 
+  history: any[], 
+  apiKey: string
+): Promise<ExtractedMemory[]> {
+  try {
+    if (!apiKey) return []
+    
+    // Use the cheaper/faster model for extraction
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    
+    const prompt = `
+    You are a memory extraction assistant. Your task is to identify important personal information, preferences, or states that a user shares in a conversation.
+    
+    User Message: "${text}"
+    
+    Categories: identity, location, preferences, professional, personal, education, emotional, physical, other.
+    
+    Rules:
+    1. Extract facts that should be remembered to personalize future conversations.
+    2. Format the response ONLY as a JSON array of objects: [{"key": "string", "value": "string", "category": "category", "confidence": 0-1}]
+    3. If nothing important is found, return an empty array [].
+    4. Keep keys short and semantic (e.g., "name", "favorite_color", "current_mood").
+    5. ONLY return the JSON array, no other text.
+    `
+    
+    const result = await model.generateContent(prompt)
+    const responseText = result.response.text().trim()
+    
+    // Parse JSON
+    let jsonStr = responseText
+    if (responseText.includes('```')) {
+      jsonStr = responseText.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+    }
+    
+    const extracted = JSON.parse(jsonStr)
+    if (Array.isArray(extracted)) {
+      return extracted.map(m => ({
+        key: m.key,
+        value: String(m.value),
+        category: (m.category || 'other') as MemoryCategory,
+        confidence: m.confidence || 0.8
+      }))
+    }
+    
+    return []
+  } catch (error) {
+    console.error('AI Memory Extraction Error:', error)
+    return []
+  }
+}
+
+/**
  * Format memories into a string for injection into the system prompt.
  */
 export function formatMemoriesForPrompt(memories: Memory[]): string {
   if (!memories.length) return ''
-
+  
   const grouped: Record<string, Memory[]> = {}
   for (const m of memories) {
     if (!grouped[m.category]) grouped[m.category] = []
