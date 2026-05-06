@@ -137,6 +137,7 @@ export default function MessageBubble({
   const [isHovered, setIsHovered] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
+  const [streamingContent, setStreamingContent] = useState('')
   
   // Refs
   const messageRef = useRef<HTMLDivElement>(null)
@@ -146,9 +147,9 @@ export default function MessageBubble({
   
   // Derived values
   const isUser = message.role === 'user'
-  const { cleanContent, followUps } = isUser 
-    ? { cleanContent: message.content, followUps: [] } 
-    : parseFollowUps(message.content)
+  const cleanContent = isUser
+    ? message.content
+    : parseFollowUps(message.content).cleanContent
   
   const thinkSecs = message.thinkingTime
     ? (message.thinkingTime / 1000).toFixed(1)
@@ -157,6 +158,22 @@ export default function MessageBubble({
   const charCount = useMemo(() => countCharacters(cleanContent), [cleanContent])
   const codeBlocks = useMemo(() => extractCodeBlocks(cleanContent), [cleanContent])
   const hasSensitiveData = useMemo(() => detectSensitiveData(cleanContent), [cleanContent])
+
+  useEffect(() => {
+    if (message.status !== 'streaming') {
+      setStreamingContent(cleanContent)
+      return
+    }
+
+    if (cleanContent.length <= streamingContent.length) return
+
+    const nextSlice = cleanContent.slice(streamingContent.length, streamingContent.length + 3)
+    const timer = window.setTimeout(() => {
+      setStreamingContent(prev => prev + nextSlice)
+    }, 18)
+
+    return () => window.clearTimeout(timer)
+  }, [cleanContent, message.status, streamingContent.length])
   
   // Validation on mount
   useEffect(() => {
@@ -483,10 +500,12 @@ export default function MessageBubble({
     
     if (message.status === 'streaming' && message.content === '') {
       return (
-        <div className="flex flex-col gap-3 py-1 scale-[0.98]">
-          <div className="shimmer h-4 w-64 rounded-full opacity-60" />
-          <div className="shimmer h-4 w-48 rounded-full opacity-40" />
-          <div className="shimmer h-4 w-56 rounded-full opacity-20" />
+        <div className="relative min-h-[36px] bg-black/90 rounded-2xl overflow-hidden">
+          <motion.div
+            animate={{ y: [-2, 2, -2], opacity: [0.45, 0.85, 0.45], scale: [1, 1.06, 1] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-2 left-3 w-3 h-3 rounded-full bg-white/90 shadow-[0_0_20px_8px_rgba(255,255,255,0.18)] blur-[0.2px]"
+          />
         </div>
       )
     }
@@ -494,7 +513,7 @@ export default function MessageBubble({
     return (
       <div className="prose-nexus text-[15px] sm:text-base selection:bg-primary/20">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {cleanContent + (message.status === 'streaming' ? '▍' : '')}
+          {(message.status === 'streaming' ? streamingContent : cleanContent) + (message.status === 'streaming' ? '▍' : '')}
         </ReactMarkdown>
       </div>
     )
@@ -509,7 +528,7 @@ export default function MessageBubble({
       animate="visible"
       exit="exit"
       className={cn(
-        "flex w-full mb-8 group relative",
+        "flex w-full mb-[14px] group relative",
         isUser ? "justify-end" : "justify-start",
         message.isSelected && "ring-2 ring-primary/50 rounded-2xl",
         className
@@ -522,7 +541,7 @@ export default function MessageBubble({
       tabIndex={enableAccessibility ? 0 : undefined}
     >
       <div className={cn(
-        "flex gap-4 max-w-[90%] sm:max-w-[85%]",
+        "flex gap-[12px] max-w-[90%] sm:max-w-[85%]",
         isUser ? "flex-row-reverse" : "flex-row"
       )}>
         {/* Avatar Area */}
