@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
         return new Response(JSON.stringify({ error: 'User already in group' }), { status: 409, headers: { 'Content-Type': 'application/json' } })
       }
 
+
       await db.collection('teams').updateOne(
         { id: teamId, 'members.userId': { $ne: targetUser.id } },
         {
@@ -34,6 +35,30 @@ export async function POST(req: NextRequest) {
           $set: { updatedAt: Date.now() },
         }
       )
+
+      const owner = await db.collection('users').findOne({ id: userId })
+      if (owner) {
+        const ids = [userId, targetUser.id].sort()
+        const memberKey = ids.join(':')
+        const roomExists = await db.collection('rooms').findOne({ memberKey })
+        if (!roomExists) {
+          const room = {
+            id: `room_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            roomName: `${owner.username} + ${targetUser.username}`,
+            memberKey,
+            members: [
+              { userId: owner.id, username: owner.username, joinedAt: Date.now() },
+              { userId: targetUser.id, username: targetUser.username, joinedAt: Date.now() }
+            ],
+            typingUsers: [],
+            createdBy: userId,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+          await db.collection('rooms').insertOne(room)
+          await db.collection('users').updateMany({ id: { $in: ids } }, { $addToSet: { groups: room.id } })
+        }
+      }
       const updated = await db.collection('teams').findOne({ id: teamId })
       return new Response(JSON.stringify(updated), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }
