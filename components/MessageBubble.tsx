@@ -25,21 +25,21 @@ import {
   Copy, Check, User, Brain, ChevronDown, ChevronUp, Globe, Zap, Bot, RefreshCw, 
   Share2, ExternalLink, Heart, ThumbsUp, ThumbsDown, Laugh, Frown, Angry,
   Edit2, Trash2, Pin, Flag, MessageSquare, Download, Maximize2, Minimize2,
-  AlertTriangle, Loader2, Eye, EyeOff, Clock, Calendar, Hash, AtSign,
-  Link as LinkIcon, FileText, Image as ImageIcon, Code, Bold, Italic,
+  AlertTriangle, Loader2, Eye, EyeOff, Calendar, AtSign,
+  FileText, Image as ImageIcon, Code, Bold, Italic,
   Strikethrough, List, ListOrdered, Quote, Minus, Plus, X, MoreVertical,
   Bookmark, BookmarkCheck, Volume2, VolumeX, ZoomIn, ZoomOut
 } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { formatTime, parseFollowUps, cn } from '@/lib/utils'
+import { parseFollowUps, cn } from '@/lib/utils'
 import { 
   sanitizeHTML, validateMessageContent, escapeHTML, maskSensitiveData,
   detectSensitiveData, checkContentPolicy
 } from '@/lib/messageSecurity'
 import {
-  formatMessageTime, formatFullDateTime, calculateReadingTime, extractCodeBlocks,
-  extractURLs, extractEmails, extractHashtags, extractMentions, countWords,
+  formatMessageTime, formatFullDateTime, extractCodeBlocks,
+  extractEmails, extractHashtags, extractMentions,
   countCharacters, detectLanguage, formatCode
 } from '@/lib/messageUtils'
 import type { ExtendedMessage, Reaction, MessageBubbleProps, MessageEdit } from '@/lib/messageTypes'
@@ -97,7 +97,6 @@ const reactionVariants = {
  */
 export default function MessageBubble({ 
   message,
-  onFollowUp,
   onReact,
   onEdit,
   onDelete,
@@ -109,7 +108,6 @@ export default function MessageBubble({
   onSelect,
   className,
   showActions = true,
-  showTimestamp = true,
   showAvatar = true,
   allowReactions = true,
   allowEditing = false,
@@ -139,6 +137,7 @@ export default function MessageBubble({
   const [isHovered, setIsHovered] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
+  const [streamingContent, setStreamingContent] = useState('')
   
   // Refs
   const messageRef = useRef<HTMLDivElement>(null)
@@ -148,20 +147,33 @@ export default function MessageBubble({
   
   // Derived values
   const isUser = message.role === 'user'
-  const { cleanContent, followUps } = isUser 
-    ? { cleanContent: message.content, followUps: [] } 
-    : parseFollowUps(message.content)
+  const cleanContent = isUser
+    ? message.content
+    : parseFollowUps(message.content).cleanContent
   
   const thinkSecs = message.thinkingTime
     ? (message.thinkingTime / 1000).toFixed(1)
     : null
   
-  const wordCount = useMemo(() => countWords(cleanContent), [cleanContent])
   const charCount = useMemo(() => countCharacters(cleanContent), [cleanContent])
-  const readingTime = useMemo(() => calculateReadingTime(cleanContent), [cleanContent])
   const codeBlocks = useMemo(() => extractCodeBlocks(cleanContent), [cleanContent])
-  const urls = useMemo(() => extractURLs(cleanContent), [cleanContent])
   const hasSensitiveData = useMemo(() => detectSensitiveData(cleanContent), [cleanContent])
+
+  useEffect(() => {
+    if (message.status !== 'streaming') {
+      setStreamingContent(cleanContent)
+      return
+    }
+
+    if (cleanContent.length <= streamingContent.length) return
+
+    const nextSlice = cleanContent.slice(streamingContent.length, streamingContent.length + 3)
+    const timer = window.setTimeout(() => {
+      setStreamingContent(prev => prev + nextSlice)
+    }, 18)
+
+    return () => window.clearTimeout(timer)
+  }, [cleanContent, message.status, streamingContent.length])
   
   // Validation on mount
   useEffect(() => {
@@ -488,18 +500,14 @@ export default function MessageBubble({
     
     if (message.status === 'streaming' && message.content === '') {
       return (
-        <div className="flex flex-col gap-3 py-1 scale-[0.98]">
-          <div className="shimmer h-4 w-64 rounded-full opacity-60" />
-          <div className="shimmer h-4 w-48 rounded-full opacity-40" />
-          <div className="shimmer h-4 w-56 rounded-full opacity-20" />
-        </div>
+        <div className="orb-loader" aria-label="Assistant is generating a response" />
       )
     }
     
     return (
       <div className="prose-nexus text-[15px] sm:text-base selection:bg-primary/20">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {cleanContent + (message.status === 'streaming' ? '▍' : '')}
+          {(message.status === 'streaming' ? streamingContent : cleanContent) + (message.status === 'streaming' ? '▍' : '')}
         </ReactMarkdown>
       </div>
     )
@@ -514,7 +522,7 @@ export default function MessageBubble({
       animate="visible"
       exit="exit"
       className={cn(
-        "flex w-full mb-8 group relative",
+        "flex w-full mb-[14px] group relative",
         isUser ? "justify-end" : "justify-start",
         message.isSelected && "ring-2 ring-primary/50 rounded-2xl",
         className
@@ -527,7 +535,7 @@ export default function MessageBubble({
       tabIndex={enableAccessibility ? 0 : undefined}
     >
       <div className={cn(
-        "flex gap-4 max-w-[90%] sm:max-w-[85%]",
+        "flex gap-[12px] max-w-[90%] sm:max-w-[85%]",
         isUser ? "flex-row-reverse" : "flex-row"
       )}>
         {/* Avatar Area */}
@@ -632,26 +640,6 @@ export default function MessageBubble({
                     </>
                   )}
                 </motion.div>
-              )}
-
-              {/* Message Stats */}
-              {message.status === 'done' && !isUser && (
-                <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60 px-1">
-                  <span className="flex items-center gap-1">
-                    <Clock size={10} />
-                    {readingTime}s read
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Hash size={10} />
-                    {wordCount} words
-                  </span>
-                  {urls.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <LinkIcon size={10} />
-                      {urls.length} links
-                    </span>
-                  )}
-                </div>
               )}
 
               {/* Advanced Thinking Detail (Expandable) */}
@@ -874,37 +862,6 @@ export default function MessageBubble({
                 )}
               </div>
 
-              {/* Follow-up Questions Section */}
-              <AnimatePresence>
-                {message.status === 'done' && followUps.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex flex-col gap-3 mt-4 w-full"
-                  >
-                    <div className="flex items-center gap-2 ml-1">
-                      <div className="h-px flex-1 bg-border/40" />
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">Recommended Paths</span>
-                      <div className="h-px flex-1 bg-border/40" />
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {followUps.map((q, idx) => (
-                        <motion.button
-                          key={idx}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => onFollowUp?.(q)}
-                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-secondary/40 border border-border/60 text-secondary-foreground hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all duration-300 text-left backdrop-blur-sm"
-                        >
-                          {q}
-                        </motion.button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               {/* Web Search Sources */}
               <AnimatePresence>
                 {message.status === 'done' && message.searchSources && message.searchSources.length > 0 && (
@@ -951,28 +908,6 @@ export default function MessageBubble({
             </>
           )}
 
-          {/* Timestamp Pill */}
-          {showTimestamp && (
-            <div className="flex items-center gap-1.5 px-2 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                {formatTime(message.timestamp)}
-              </span>
-              {!isUser && <span className="w-1 h-1 rounded-full bg-border" />}
-              {!isUser && (
-                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Verified
-                </span>
-              )}
-              {message.isEdited && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-border" />
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Edited
-                  </span>
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
       
@@ -1245,5 +1180,3 @@ export default function MessageBubble({
     </motion.div>
   )
 }
-
-
