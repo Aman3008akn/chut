@@ -25,6 +25,7 @@ import {
 import type {
   Message, Conversation, ResearchStep, SearchSource
 } from '@/lib/types'
+import { extractMemoriesFromText } from '@/lib/memories'
 
 // ============================================================
 // SECURITY CONSTANTS
@@ -1651,6 +1652,17 @@ export default function Home() {
         hasImage: !!safeImage,
       })
 
+      // ── Memory check (client-side for instant feedback) ──
+      const detectedMemories = extractMemoriesFromText(text)
+      if (detectedMemories.length > 0) {
+        const memoryDetails = detectedMemories.map(m => `${m.key}: ${m.value}`).join(', ')
+        notify({
+          type: 'info',
+          message: `🧠 Memory updated: ${memoryDetails}`,
+          duration: 5000
+        })
+      }
+
       // ── Resolve or create conversation ───────────────────
       let convId = activeId
       let currentConv: Conversation
@@ -1836,6 +1848,7 @@ export default function Home() {
               ? 'web_search'
               : 'normal',
             userName,
+            userEmail: session?.user?.email,
             imageUrl: safeImage,
             model: selectedModel,
           }),

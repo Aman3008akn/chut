@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { connectToDatabase } from '@/lib/mongodb'
+import { extractMemoriesFromText, formatMemoriesForPrompt } from '@/lib/memories'
+import type { Memory } from '@/lib/memories'
 
 // Gemini API configuration
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
@@ -147,7 +150,7 @@ async function streamFromGemini(
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, mode, userName, imageUrl, model } = await req.json()
+    const { messages, mode, userName, imageUrl, model, userEmail } = await req.json()
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -158,10 +161,69 @@ export async function POST(req: NextRequest) {
 
     const userMessages = messages.filter(m => m.role === 'user')
     const isFirstTurn = userMessages.length === 1
+    const lastUserMessage = userMessages[userMessages.length - 1]?.content || ''
+    const userId = userEmail || 'anonymous'
+
+    // ── Fetch existing memories for this user ────────────────
+    let memoriesPrompt = ''
+    let savedMemories: Memory[] = []
+    try {
+      const { db } = await connectToDatabase()
+      savedMemories = await db
+        .collection('memories')
+        .find({ userId })
+        .sort({ updatedAt: -1 })
+        .limit(50)
+        .toArray() as unknown as Memory[]
+      
+      memoriesPrompt = formatMemoriesForPrompt(savedMemories)
+    } catch (memErr: any) {
+      console.warn('[Memories] Failed to fetch memories:', memErr.message)
+    }
+
+    // ── Extract & save new memories from user message (background) ──
+    const newMemories = extractMemoriesFromText(lastUserMessage)
+    if (newMemories.length > 0 && userId !== 'anonymous') {
+      // Fire and forget - don't block the response
+      (async () => {
+        try {
+          const { db } = await connectToDatabase()
+          const collection = db.collection('memories')
+          for (const mem of newMemories) {
+            const existing = await collection.findOne({ userId, key: mem.key })
+            const now = Date.now()
+            if (existing) {
+              await collection.updateOne(
+                { userId, key: mem.key },
+                { $set: { value: mem.value, updatedAt: now, confidence: Math.max(mem.confidence, existing.confidence || 0) } }
+              )
+            } else {
+              await collection.insertOne({
+                userId,
+                key: mem.key,
+                value: mem.value,
+                category: mem.category,
+                source: lastUserMessage.slice(0, 200),
+                confidence: mem.confidence,
+                createdAt: now,
+                updatedAt: now,
+              })
+            }
+          }
+          console.log(`[Memories] Saved ${newMemories.length} memories for ${userId}`)
+        } catch (saveErr: any) {
+          console.warn('[Memories] Failed to save:', saveErr.message)
+        }
+      })()
+    }
+
+    // Use memory-based name if we have it and no userName from session
+    const memoryName = savedMemories.find(m => m.key === 'name')?.value
+    const effectiveName = userName || memoryName || 'User'
     
-    const greetingDetail = (userName && isFirstTurn) 
-      ? `The user's name is ${userName}. Greet them personally ONLY in this first response (e.g., "Hi ${userName}! Kaise ho aap? 😊").` 
-      : "The user's name is " + (userName || "User") + ". Do NOT greet them again or use their name in this message, as you have already introduced yourself. Start directly with the answer." 
+    const greetingDetail = (effectiveName !== 'User' && isFirstTurn) 
+      ? `The user's name is ${effectiveName}. Greet them personally ONLY in this first response (e.g., "Hi ${effectiveName}! Kaise ho aap? 😊").` 
+      : "The user's name is " + effectiveName + ". Do NOT greet them again or use their name in this message, as you have already introduced yourself. Start directly with the answer." 
 
     const ownerInfo = `
     CRITICAL INFORMATION ABOUT YOUR CREATION:
@@ -230,6 +292,7 @@ export async function POST(req: NextRequest) {
       systemPrompt = `You are Nexus AI in "Deep Research" mode. Your goal is to provide an elite-level, exhaustive, and multi-dimensional analysis.
         ${greetingDetail}
         ${ownerInfo}
+        ${memoriesPrompt}
         ${modelSpecificPrompt}
 
         INTERNAL REASONING GUIDELINES:
@@ -250,6 +313,7 @@ export async function POST(req: NextRequest) {
       systemPrompt = `You are Nexus AI in "Web Search" mode. You have access to real-time Google Search results to provide the most current, accurate information.
         ${greetingDetail}
         ${ownerInfo}
+        ${memoriesPrompt}
         ${modelSpecificPrompt}
         
         CRITICAL INSTRUCTIONS FOR WEB SEARCH MODE:
@@ -266,6 +330,7 @@ export async function POST(req: NextRequest) {
       systemPrompt = `You are Nexus AI, a sharp, helpful, and friendly assistant. 
         ${greetingDetail}
         ${ownerInfo}
+        ${memoriesPrompt}
         ${modelSpecificPrompt}
         
         ABSOLUTE RULES - FOLLOW STRICTLY:
