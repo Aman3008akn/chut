@@ -201,6 +201,7 @@ async function streamFromPollinations(
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let done = false
+    let buffer = ''
 
     while (!done) {
       const { value, done: readerDone } = await reader.read()
@@ -209,34 +210,44 @@ async function streamFromPollinations(
         break
       }
       
-      const rawChunk = decoder.decode(value)
-      const lines = rawChunk.split('\n')
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      // Keep the last partial line in the buffer
+      buffer = lines.pop() || ''
       
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim()
-          if (data === '[DONE]') break
+        const trimmedLine = line.trim()
+        if (!trimmedLine) continue
+        
+        // Handle 'data: ' prefix
+        let content = ''
+        if (trimmedLine.startsWith('data: ')) {
+          const data = trimmedLine.slice(6).trim()
+          if (data === '[DONE]') {
+            done = true
+            break
+          }
           
           try {
             const parsed = JSON.parse(data)
-            const content = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || ''
-            if (content) {
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ text: content })}\n\n`)
-              )
-            }
+            content = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || ''
           } catch (e) {
-            // If not JSON, it might be raw text from Pollinations (they sometimes mix)
-            if (data && !data.startsWith('{')) {
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ text: data })}\n\n`)
-              )
-            }
+            // If it's data: but not JSON, maybe it's just raw text
+            if (!data.startsWith('{')) content = data
           }
-        } else if (line.trim() && !line.startsWith(':')) {
-          // Some Pollinations models send raw text without 'data: ' prefix
+        } else if (!trimmedLine.startsWith(':')) {
+          // Sometimes Pollinations sends raw text or raw JSON without 'data: '
+          try {
+            const parsed = JSON.parse(trimmedLine)
+            content = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || ''
+          } catch (e) {
+            content = trimmedLine
+          }
+        }
+        
+        if (content) {
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ text: line })}\n\n`)
+            encoder.encode(`data: ${JSON.stringify({ text: content })}\n\n`)
           )
         }
       }
