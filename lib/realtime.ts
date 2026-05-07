@@ -8,9 +8,9 @@ export function publishRoomEvent(
 ) {
   const listeners = roomListeners.get(roomId)
   if (!listeners) return
-  listeners.forEach((listener) => {
+  for (const listener of listeners) {
     listener(event)
-  })
+  }
 }
 
 export function subscribeRoomEvent(
