@@ -1447,6 +1447,39 @@ export default function Home() {
 
   // ── Session ──────────────────────────────────────────────
   const { data: session } = useSession()
+  const [guestProfile, setGuestProfile] = useState<{ id: string; username: string } | null>(null)
+  const [usernameInput, setUsernameInput] = useState('')
+  const [usernameLoading, setUsernameLoading] = useState(false)
+  const [usernameError, setUsernameError] = useState('')
+
+  useEffect(() => {
+    const raw = localStorage.getItem('guest_profile')
+    if (!raw) return
+    try {
+      setGuestProfile(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  const createGuestProfile = useCallback(async () => {
+    setUsernameError('')
+    setUsernameLoading(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to create profile')
+      const profile = { id: data.id, username: data.username }
+      localStorage.setItem('guest_profile', JSON.stringify(profile))
+      setGuestProfile(profile)
+    } catch (e: any) {
+      setUsernameError(e.message)
+    } finally {
+      setUsernameLoading(false)
+    }
+  }, [usernameInput])
   const userName = useMemo(
     () => session?.user?.name?.split(' ')[0],
     [session]
@@ -2242,10 +2275,9 @@ export default function Home() {
           )}
 
           {/* Team Panel */}
-          {session?.user && (
+          {(session?.user || guestProfile) && (
             <TeamPanel
-              userId={session.user.email || session.user.id || ''}
-              userEmail={session.user.email || ''}
+              userId={session?.user?.email || session?.user?.id || guestProfile?.id || ''}
               isOpen={showTeams}
               onClose={() => setShowTeams(false)}
               onSelectTeam={(team) => {
@@ -2255,6 +2287,18 @@ export default function Home() {
             />
           )}
         </div>
+        {!session?.user && !guestProfile && (
+          <div className="fixed inset-0 z-[70] bg-black flex items-center justify-center p-6">
+            <div className="w-full max-w-sm space-y-3">
+              <h2 className="text-white text-xl font-semibold text-center">Choose a username</h2>
+              <input value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/10 text-white border border-white/20" placeholder="unique username" />
+              {usernameError && <p className="text-red-400 text-sm">{usernameError}</p>}
+              <button onClick={createGuestProfile} disabled={usernameLoading || usernameInput.trim().length < 3} className="w-full py-3 rounded-xl bg-white text-black font-semibold disabled:opacity-50">
+                {usernameLoading ? 'Creating...' : 'Continue'}
+              </button>
+            </div>
+          </div>
+        )}
       </NotificationProvider>
     </ThemeProvider>
   )
