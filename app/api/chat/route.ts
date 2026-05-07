@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { connectToDatabase } from '@/lib/mongodb'
-import { extractMemoriesFromText, formatMemoriesForPrompt, extractMemoriesWithAI } from '@/lib/memories'
+import * as MemoryUtils from '@/lib/memories'
 import type { Memory } from '@/lib/memories'
 
 // Gemini API configuration
@@ -288,13 +288,13 @@ export async function POST(req: NextRequest) {
         .limit(50)
         .toArray() as unknown as Memory[]
       
-      memoriesPrompt = formatMemoriesForPrompt(savedMemories)
+      memoriesPrompt = MemoryUtils.formatMemoriesForPrompt(savedMemories)
     } catch (memErr: any) {
       console.warn('[Memories] Failed to fetch memories:', memErr.message)
     }
 
     // ── Extract & save new memories from user message (background) ──
-    const regexMemories = extractMemoriesFromText(lastUserMessage)
+    const regexMemories: MemoryUtils.ExtractedMemory[] = [];
     
     // Fire and forget - don't block the response
     (async () => {
@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
         const collection = db.collection('memories')
         
         // 1. AI-based extraction (more intelligent)
-        const aiMemories = await extractMemoriesWithAI(lastUserMessage, messages, GEMINI_API_KEY)
+        const aiMemories = await MemoryUtils.extractMemoriesWithAI(lastUserMessage, messages, GEMINI_API_KEY)
         
         // Merge regex and AI memories (AI takes precedence)
         const combined = [...regexMemories]
