@@ -1,30 +1,32 @@
 type Listener = (event: any) => void
 
-const roomListeners = new Map<string, Listener[]>()
+const roomListeners = new Map<string, Set<Listener>>()
 
-export function publishRoomEvent(roomId: string, event: any) {
+export function publishRoomEvent(
+  roomId: string,
+  event: any
+) {
   const listeners = roomListeners.get(roomId)
-  if (!listeners || listeners.length === 0) return
-  listeners.forEach((listener) => {
+  if (!listeners) return
+  for (const listener of listeners) {
     listener(event)
-  })
+  }
 }
 
-export function subscribeRoomEvent(roomId: string, listener: Listener) {
-  const list = roomListeners.get(roomId) ?? []
-  if (!list.includes(listener)) {
-    list.push(listener)
-  }
-  roomListeners.set(roomId, list)
-
+export function subscribeRoomEvent(
+  roomId: string,
+  listener: Listener
+) {
+  const set =
+    roomListeners.get(roomId) ?? new Set<Listener>()
+  set.add(listener)
+  roomListeners.set(roomId, set)
   return () => {
-    const current = roomListeners.get(roomId)
-    if (!current) return
-    const next = current.filter((fn) => fn !== listener)
-    if (next.length === 0) {
+    const s = roomListeners.get(roomId)
+    if (!s) return
+    s.delete(listener)
+    if (!s.size) {
       roomListeners.delete(roomId)
-      return
     }
-    roomListeners.set(roomId, next)
   }
 }
