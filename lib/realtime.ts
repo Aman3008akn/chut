@@ -5,7 +5,9 @@ const roomListeners = new Map<string, Set<Listener>>()
 export function publishRoomEvent(roomId: string, event: any) {
   const listeners = roomListeners.get(roomId)
   if (!listeners) return
-  listeners.forEach((listener) => listener(event))
+  listeners.forEach((listener) => {
+    listener(event)
+  })
 }
 
 export function subscribeRoomEvent(roomId: string, listener: Listener) {
