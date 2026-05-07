@@ -56,9 +56,7 @@ export async function POST(req: NextRequest) {
             updatedAt: Date.now(),
           }
           await db.collection('rooms').insertOne(room)
-          const usersCollection: any = db.collection('users')
-          const roomMemberIds = ids
-          await usersCollection.updateMany({ id: { $in: roomMemberIds } }, { $addToSet: { groups: room.id } })
+          await db.collection('users').updateMany({ id: { $in: ids } }, { $addToSet: { groups: room.id } })
         }
       }
       const updated = await db.collection('teams').findOne({ id: teamId })

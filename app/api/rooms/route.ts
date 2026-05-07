@@ -19,9 +19,7 @@ export async function POST(req: NextRequest) {
     if (existing) return Response.json(existing)
     const room = { id: `room_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, roomName: roomName || 'Shared AI Room', memberKey: key, members, typingUsers: [], createdBy, createdAt: Date.now(), updatedAt: Date.now() }
     await db.collection('rooms').insertOne(room)
-    const usersCollection: any = db.collection('users')
-    const memberIds = members.map((m) => m.userId)
-    await usersCollection.updateMany({ id: { $in: memberIds } }, { $addToSet: { groups: room.id } })
+    await db.collection('users').updateMany({ id: { $in: members.map(m => m.userId) } }, { $addToSet: { groups: room.id } })
     return Response.json(room)
   } catch (e) {
     console.error(e)
