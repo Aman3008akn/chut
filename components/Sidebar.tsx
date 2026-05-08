@@ -15,6 +15,7 @@ import {
   Sparkles,
   UserCircle2,
   Layers,
+  Users,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, formatTime } from '@/lib/utils'
