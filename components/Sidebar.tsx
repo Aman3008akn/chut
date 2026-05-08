@@ -129,9 +129,16 @@ function Section({ title, data, collapsed, activeId, onSelect, onDelete, setMobi
       <div className="space-y-0.5">
         {data.map((conv: Conversation) => (
           <div key={conv.id} onClick={() => { onSelect(conv.id); setMobileOpen(false) }} className={cn('group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all', activeId === conv.id ? 'bg-white/10 text-zinc-100' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200')}>
-            <MessageSquare size={14} className="shrink-0" />
+            {conv.teamId ? <Users size={14} className="shrink-0 text-emerald-400" /> : <MessageSquare size={14} className="shrink-0" />}
             <div className="min-w-0 flex-1 pr-4">
-              <p className="text-xs truncate">{conv.title}</p>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-xs truncate">{conv.title}</p>
+                {conv.teamId && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold uppercase tracking-wider">
+                    Team
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-zinc-500">{formatTime(conv.updatedAt)}</p>
             </div>
             <button onClick={(e) => { e.stopPropagation(); onDelete(conv.id); setMobileOpen(false) }} className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-zinc-500 hover:text-red-300 hover:bg-red-500/10 transition">

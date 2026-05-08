@@ -131,7 +131,7 @@ export default function TeamPanel({
         setSelectedTeam(data)
         setTeams(prev => prev.map(t => (t.id === data.id ? data : t)))
         setInviteEmail('')
-        alert('Member added instantly')
+        alert('Member added! A shared group chat has been created/updated for your team.')
       } else {
         alert(`Error: ${data.error || 'Failed to add member'}`)
       }

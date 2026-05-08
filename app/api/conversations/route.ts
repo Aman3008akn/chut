@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getConversationsCollection } from '@/lib/mongodb'
+import { getConversationsCollection, connectToDatabase } from '@/lib/mongodb'
 import { getServerSession } from 'next-auth'
 
 export async function GET(req: NextRequest) {
@@ -9,9 +9,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { db } = await connectToDatabase()
+    const teams = await db.collection('teams').find({ 'members.userId': session.user.email }).toArray()
+    const teamIds = teams.map(t => t.id)
+
     const collection = await getConversationsCollection()
     const conversations = await collection
-      .find({ userEmail: session.user.email })
+      .find({
+        $or: [
+          { userEmail: session.user.email },
+          { teamId: { $in: teamIds } }
+        ]
+      })
       .sort({ updatedAt: -1 })
       .toArray()
 
@@ -36,13 +45,31 @@ export async function POST(req: NextRequest) {
     }
 
     const { conversation } = await req.json()
+    const { db } = await connectToDatabase()
     const collection = await getConversationsCollection()
 
-    await collection.updateOne(
-      { id: conversation.id, userEmail: session.user.email },
-      { $set: { ...conversation, userEmail: session.user.email, updatedAt: Date.now() } },
-      { upsert: true }
-    )
+    // If it's a team conversation, verify membership
+    if (conversation.teamId) {
+      const team = await db.collection('teams').findOne({ 
+        id: conversation.teamId, 
+        'members.userId': session.user.email 
+      })
+      if (!team) {
+        return NextResponse.json({ error: 'Access denied to this team' }, { status: 403 })
+      }
+      
+      await collection.updateOne(
+        { id: conversation.id },
+        { $set: { ...conversation, updatedAt: Date.now() } },
+        { upsert: true }
+      )
+    } else {
+      await collection.updateOne(
+        { id: conversation.id, userEmail: session.user.email },
+        { $set: { ...conversation, userEmail: session.user.email, updatedAt: Date.now() } },
+        { upsert: true }
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

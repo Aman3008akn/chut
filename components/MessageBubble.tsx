@@ -555,9 +555,16 @@ export default function MessageBubble({
 
         {/* Content Area */}
         <div className={cn(
-          "flex flex-col gap-2 flex-1",
+          "flex flex-col gap-1 flex-1",
           isUser ? "items-end" : "items-start"
         )}>
+          {/* Sender Name (for Team Chats) */}
+          {message.senderName && !isUser && (
+            <span className="text-[10px] font-bold text-[var(--text-muted)] px-1 mb-0.5 uppercase tracking-wider">
+              {message.senderName}
+            </span>
+          )}
+
           {/* Validation Warnings */}
           {validationErrors.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400">

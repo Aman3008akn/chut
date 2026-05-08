@@ -1642,6 +1642,28 @@ export default function Home() {
     }
   }, [session, loadFromDb, notify, syncState.syncError])
 
+  // ── Team selection handler ────────────────────────────────
+  const handleSelectTeamChat = useCallback((team: any) => {
+    // Look for an existing conversation for this team
+    const existing = conversations.find(c => c.teamId === team.id)
+    if (existing) {
+      setActiveId(existing.id)
+    } else {
+      // Create a new team conversation
+      const newTeamChat: Conversation = {
+        id: `team_chat_${team.id}`,
+        title: team.name,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        teamId: team.id
+      }
+      setConversations(prev => [newTeamChat, ...prev])
+      setActiveId(newTeamChat.id)
+    }
+    setShowTeams(false)
+  }, [conversations])
+
   // ── Keyboard shortcuts ────────────────────────────────────
   useKeyboardShortcuts(
     useMemo(
@@ -1772,6 +1794,8 @@ export default function Home() {
         status: 'done',
         timestamp: Date.now(),
         imageUrl: safeImage,
+        senderName: userName || guestProfile?.username || 'Guest',
+        senderId: session?.user?.email || guestProfile?.id || 'anonymous',
       }
 
       // Check autoThink setting from localStorage (default to true if not set)
@@ -1795,6 +1819,11 @@ export default function Home() {
           : 'thinking'
         : 'streaming'
 
+      // Decide if AI should respond (smart response for team chats)
+      const isTeamChat = !!currentConv.teamId
+      const aiMentioned = text.toLowerCase().includes('@astra') || text.toLowerCase().includes('@ai')
+      const shouldAIRespond = !isTeamChat || aiMentioned
+
       const assistantId = generateId()
       const assistantMsg: Message = {
         id: assistantId,
@@ -1817,7 +1846,7 @@ export default function Home() {
       const updatedMessages = clampMessages([
         ...currentConv.messages,
         userMsg,
-        assistantMsg,
+        ...(shouldAIRespond ? [assistantMsg] : []),
       ])
 
       const updatedConv: Conversation = {
@@ -1825,9 +1854,17 @@ export default function Home() {
         messages: updatedMessages,
         title: getConversationTitle(updatedMessages),
         updatedAt: Date.now(),
+        teamId: currentConv.teamId,
       }
 
       updateConv(convId, () => updatedConv)
+
+      if (!shouldAIRespond) {
+        // If it's a team chat and AI not mentioned, just save and exit
+        await saveToDb(updatedConv)
+        return
+      }
+
       convDispatch({ type: 'SEND_START', convId, assistantId, mode: initialStatus })
 
       // ── Abort controller ──────────────────────────────────
@@ -2331,10 +2368,7 @@ export default function Home() {
               userId={session?.user?.email || session?.user?.id || guestProfile?.id || ''}
               isOpen={showTeams}
               onClose={() => setShowTeams(false)}
-              onSelectTeam={(team) => {
-                console.log('Selected team:', team)
-                setShowTeams(false)
-              }}
+              onSelectTeam={handleSelectTeamChat}
             />
           )}
         </div>

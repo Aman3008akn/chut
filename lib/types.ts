@@ -39,6 +39,8 @@ export interface Message {
   isWebSearch?: boolean
   searchSources?: SearchSource[]
   webSearchQueries?: string[]
+  senderName?: string
+  senderId?: string
 }
 
 export interface Conversation {
@@ -47,4 +49,5 @@ export interface Conversation {
   messages: Message[]
   createdAt: number
   updatedAt: number
+  teamId?: string
 }

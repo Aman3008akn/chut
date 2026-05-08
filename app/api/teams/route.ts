@@ -98,58 +98,20 @@ export async function POST(req: NextRequest) {
         }
       )
 
-      const owner = await db.collection('users').findOne({
-        id: userId,
-      })
-
-      if (owner) {
-        const ids = [userId, targetUser.id].sort()
-
-        const memberKey = ids.join(':')
-
-        const roomExists = await db
-          .collection('rooms')
-          .findOne({
-            memberKey,
-          })
-
-        if (!roomExists) {
-          const room = {
-            id: `room_${Date.now()}_${Math.random()
-              .toString(36)
-              .slice(2, 8)}`,
-            roomName: `${owner.username} + ${targetUser.username}`,
-            memberKey,
-            members: [
-              {
-                userId: owner.id,
-                username: owner.username,
-                joinedAt: Date.now(),
-              },
-              {
-                userId: targetUser.id,
-                username: targetUser.username,
-                joinedAt: Date.now(),
-              },
-            ],
-            typingUsers: [],
-            createdBy: userId,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          }
-
-          await db.collection('rooms').insertOne(room)
-
-          const usersCollection =
-            db.collection<UserGroupsDoc>('users')
-
-          const roomMemberIds = ids
-
-          await usersCollection.updateMany(
-            { id: { $in: roomMemberIds } },
-            { $addToSet: { groups: room.id } }
-          )
-        }
+      // Initialize/Update the shared team conversation
+      const convCollection = db.collection('conversations')
+      const existingConv = await convCollection.findOne({ teamId: teamId })
+      
+      if (!existingConv) {
+        await convCollection.insertOne({
+          id: `team_chat_${teamId}`,
+          title: team?.name || 'Team Chat',
+          messages: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          teamId: teamId,
+          // We don't set userEmail here because it's a team chat
+        })
       }
 
       const updated = await db.collection('teams').findOne({
