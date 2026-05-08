@@ -354,6 +354,10 @@ export class ThinkingService {
     this.running = false
   }
 
+  isRunning(): boolean {
+    return this.running
+  }
+
   getManager(): ThinkingManager {
     return this.manager
   }
